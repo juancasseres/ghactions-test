@@ -1,7 +1,25 @@
 name: Create release Tags
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      smoke-test-command:
+        description: 'Smoke test command to test this repository'
+        required: true
+        default: ''
 
 jobs:
+  env-variables:
+    runs-on: ubuntu-latest
+    outputs:
+      smoke-test-command:
+        description: 'Specific smoke test command to execute'
+        value: ${{ steps.set-vars.outputs.smoke-test-command }}
+    steps:
+      - name: Set variables
+        id: set-vars
+        run: |
+          echo "::set-output name=smoke-test-command:: ${{ github.event.inputs.smoke-test-command }}"
+
   setup:
     runs-on: ubuntu-latest
     steps:
