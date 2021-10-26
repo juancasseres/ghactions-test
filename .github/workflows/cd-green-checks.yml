@@ -8,6 +8,7 @@ jobs:
       smoke-test-command: ${{ steps.set-vars.outputs.smoke-test-command }}
       slack-channel: ${{ steps.set-vars.outputs.slack-channel }}
       slack-webhook: ${{ steps.set-vars.outputs.slack-webhook }}
+      deployment-api-url: ${{ steps.set-vars.outputs.deployment-api-url }}
     steps:
       - name: Set variables
         id: set-vars
@@ -15,6 +16,7 @@ jobs:
           echo "::set-output name=smoke-test-command::test beta-admin.evercheck.com"
           echo "::set-output name=slack-channel::platform-team-guys"
           echo "::set-output name=slack-webhook::https://hooks.slack.com/services/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"
+          echo "::set-output name=deployment-api-url::https://ansible.demo.evercheck.com/run-command"
   smoke-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -100,3 +102,17 @@ jobs:
       - release-tag
     runs-on: ubuntu-latest
     steps:
+      - name: Schedule the rollback
+        id: schedule-rollback
+        run: |
+          API_RESPONSE=$(curl $FLAGS $METHOD $DEPLOYMENT_API --silent --header 'Content-Type: application/json' --data-raw '{ "service": "ece-web-api", "command": "rollback", "location": "all", "username": "${{ env.USER_NAME }}" }')
+          IFS=';' read -ra my_array <<< "$API_RESPONSE"
+          API_RESPONSE_BODY="${my_array[0]}"
+          API_RESPONSE_HTTP_CODE="${my_array[1]}"
+          echo "::set-output name=response::$API_RESPONSE_BODY"
+          echo "::set-output name=status::$API_RESPONSE_HTTP_CODE"
+        env:
+          METHOD: POST
+          FLAGS: -w ;%{http_code} --location --request
+          USER_NAME: ${{ github.actor }}
+          DEPLOYMENT_API: ${{ needs.env-variables.outputs.deployment-api-url }}
