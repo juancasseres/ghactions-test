@@ -17,102 +17,115 @@ jobs:
           echo "::set-output name=slack-channel::platform-team-guys"
           echo "::set-output name=slack-webhook::https://hooks.slack.com/services/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"
           echo "::set-output name=deployment-api-url::https://ansible.demo.evercheck.com/run-command"
-  smoke-tests:
+  tag_name:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     outputs:
-      status: ${{ steps.share-status.outputs.status }}
-    needs:
-      - env-variables
-    steps:
-      - name: Checkout Ec-tests-stack to run the smoke tests
-        uses: actions/checkout@v2
-        with:
-          repository: cebroker/ec-tests-stack
-          token: ${{ secrets.CICD_PAT }}
-      - name: Set up node environment
-        uses: actions/setup-node@v2
-        with:
-          node-version: '13.8.0'
-      - name: Install smoke-tests dependencies
-        run: |
-          cd smoke-tests/core
-          npm i
-      - name: Run smoke-tests
-        run: |
-          cd smoke-tests/core
-          npm run ${{ env.SMOKE_TEST_COMMAND }}
-        env:
-          SMOKE_TEST_COMMAND: ${{ needs.env-variables.outputs.smoke-test-command }}
-      - id: share-status
-        name: Share status
-        run: echo "::set-output name=status::success"
-  release-tag:
-    if: success()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      previous_tag: ${{ steps.share-previous-tag.outputs.previous_tag }}
-      new_tag: ${{ steps.share-previous-tag.outputs.previous_tag }}
-    needs:
-      - env-variables
-      - smoke-tests
+      last_tag: ${{ steps.set-vars.outputs.last_tag }}
     steps:
       - uses: actions/checkout@v2
-      - name: Bump version and push tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v5.6
-        with:
-          github_token: ${{ secrets.CICD_PAT }}
-      - name: Create a GitHub release
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ steps.tag_version.outputs.new_tag }}
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
-          body: ${{ steps.tag_version.outputs.changelog }}
-      - id: share-tags
-        name: Share previous and new tag
+      - name: Set last tag
+        id: set-tag
         run: |
-          echo "::set-output name=previous_tag::${{steps.tag_version.outputs.previous_tag}}"
-          echo "::set-output name=new_tag::${{steps.tag_version.outputs.new_tag}}"
-  notify-success:
-    if: success()
-    timeout-minutes: 1
-    needs:
-      - env-variables
-      - smoke-tests
-      - release-tag
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send success notification
-        uses: rtCamp/action-slack-notify@v2.2.0
+          echo "::set-output name=last_tag::${GITHUB_REF#refs/*/}"
+      - name: Check output
         env:
-          SLACK_CHANNEL: ${{ needs.env-variables.outputs.slack-channel }}
-          SLACK_COLOR: '#00A950'
-          SLACK_MESSAGE: ':rocket: :tada: :check: Tag ${{needs.release-tag.outputs.new_tag}} successfully created and released!'
-          SLACK_TITLE: 'Tag release status'
-          SLACK_USERNAME: bot
-          SLACK_WEBHOOK: ${{ needs.env-variables.outputs.slack-webhook }}
-  rollback:
-    if: failure()
-    timeout-minutes: 5
-    needs:
-      - env-variables
-      - smoke-tests
-      - release-tag
-    runs-on: ubuntu-latest
-    steps:
-      - name: Schedule the rollback
-        id: schedule-rollback
+          RELEASE_VERSION: ${{ steps.set-tag.outputs.last_tag }}
         run: |
-          API_RESPONSE=$(curl $FLAGS $METHOD $DEPLOYMENT_API --silent --header 'Content-Type: application/json' --data-raw '{ "service": "ece-web-api", "command": "rollback", "location": "all", "username": "${{ env.USER_NAME }}" }')
-          IFS=';' read -ra my_array <<< "$API_RESPONSE"
-          API_RESPONSE_BODY="${my_array[0]}"
-          API_RESPONSE_HTTP_CODE="${my_array[1]}"
-          echo "::set-output name=response::$API_RESPONSE_BODY"
-          echo "::set-output name=status::$API_RESPONSE_HTTP_CODE"
-        env:
-          METHOD: POST
-          FLAGS: -w ;%{http_code} --location --request
-          USER_NAME: ${{ github.actor }}
-          DEPLOYMENT_API: ${{ needs.env-variables.outputs.deployment-api-url }}
+          echo $RELEASE_VERSION
+          echo ${{ steps.set-tag.outputs.last_tag }}
+  # smoke-tests:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 5
+  #   outputs:
+  #     status: ${{ steps.share-status.outputs.status }}
+  #   needs:
+  #     - env-variables
+  #   steps:
+  #     - name: Checkout Ec-tests-stack to run the smoke tests
+  #       uses: actions/checkout@v2
+  #       with:
+  #         repository: cebroker/ec-tests-stack
+  #         token: ${{ secrets.CICD_PAT }}
+  #     - name: Set up node environment
+  #       uses: actions/setup-node@v2
+  #       with:
+  #         node-version: '13.8.0'
+  #     - name: Install smoke-tests dependencies
+  #       run: |
+  #         cd smoke-tests/core
+  #         npm i
+  #     - name: Run smoke-tests
+  #       run: |
+  #         cd smoke-tests/core
+  #         npm run ${{ env.SMOKE_TEST_COMMAND }}
+  #       env:
+  #         SMOKE_TEST_COMMAND: ${{ needs.env-variables.outputs.smoke-test-command }}
+  #     - id: share-status
+  #       name: Share status
+  #       run: echo "::set-output name=status::success"
+  # release-tag:
+  #   if: success()
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 5
+  #   outputs:
+  #     new_tag: ${{ steps.share-previous-tag.outputs.previous_tag }}
+  #   needs:
+  #     - env-variables
+  #     - smoke-tests
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - name: Bump version and push tag
+  #       id: tag_version
+  #       uses: mathieudutour/github-tag-action@v5.6
+  #       with:
+  #         github_token: ${{ secrets.CICD_PAT }}
+  #     - name: Create a GitHub release
+  #       uses: ncipollo/release-action@v1
+  #       with:
+  #         tag: ${{ steps.tag_version.outputs.new_tag }}
+  #         name: Release ${{ steps.tag_version.outputs.new_tag }}
+  #         body: ${{ steps.tag_version.outputs.changelog }}
+  #     - id: share-tags
+  #       name: Share previous and new tag
+  #       run: |
+  #         echo "::set-output name=new_tag::${{steps.tag_version.outputs.new_tag}}"
+  # notify-success:
+  #   if: success()
+  #   timeout-minutes: 1
+  #   needs:
+  #     - env-variables
+  #     - smoke-tests
+  #     - release-tag
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Send success notification
+  #       uses: rtCamp/action-slack-notify@v2.2.0
+  #       env:
+  #         SLACK_CHANNEL: ${{ needs.env-variables.outputs.slack-channel }}
+  #         SLACK_COLOR: '#00A950'
+  #         SLACK_MESSAGE: ':rocket: :tada: :check: Tag ${{needs.release-tag.outputs.new_tag}} successfully created and released!'
+  #         SLACK_TITLE: 'Tag release status'
+  #         SLACK_USERNAME: bot
+  #         SLACK_WEBHOOK: ${{ needs.env-variables.outputs.slack-webhook }}
+  # rollback:
+  #   if: failure()
+  #   timeout-minutes: 5
+  #   needs:
+  #     - env-variables
+  #     - smoke-tests
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Schedule the rollback
+  #       id: schedule-rollback
+  #       run: |
+  #         API_RESPONSE=$(curl $FLAGS $METHOD $DEPLOYMENT_API --silent --header 'Content-Type: application/json' --data-raw '{ "service": "ece-web-api", "command": "rollback", "location": "all", "username": "${{ env.USER_NAME }}", "git_tag": ${{needs.}} }')
+  #         IFS=';' read -ra my_array <<< "$API_RESPONSE"
+  #         API_RESPONSE_BODY="${my_array[0]}"
+  #         API_RESPONSE_HTTP_CODE="${my_array[1]}"
+  #         echo "::set-output name=response::$API_RESPONSE_BODY"
+  #         echo "::set-output name=status::$API_RESPONSE_HTTP_CODE"
+  #       env:
+  #         METHOD: POST
+  #         FLAGS: -w ;%{http_code} --location --request
+  #         USER_NAME: ${{ github.actor }}
+  #         DEPLOYMENT_API: ${{ needs.env-variables.outputs.deployment-api-url }}
