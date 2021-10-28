@@ -26,15 +26,15 @@ jobs:
       - uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
       - name: Set last tag
-        id: set-tag
+        id: set-vars
         run: |
           echo "::set-output name=last_tag::${steps.get-latest-tag.outputs.tag}"
       - name: Check output
         env:
-          RELEASE_VERSION: ${{ steps.set-tag.outputs.last_tag }}
+          RELEASE_VERSION: ${{ steps.set-vars.outputs.last_tag }}
         run: |
           echo $RELEASE_VERSION
-          echo ${{ steps.set-tag.outputs.last_tag }}
+          echo ${{ steps.set-vars.outputs.last_tag }}
   # smoke-tests:
   #   runs-on: ubuntu-latest
   #   timeout-minutes: 5
