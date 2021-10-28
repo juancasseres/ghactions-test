@@ -28,7 +28,7 @@ jobs:
       - name: Set last tag
         id: set-vars
         run: |
-          echo "::set-output name=last_tag::${steps.get-latest-tag.outputs.tag}"
+          echo "::set-output name=last_tag::${{steps.get-latest-tag.outputs.tag}}"
       - name: Check output
         env:
           RELEASE_VERSION: ${{ steps.set-vars.outputs.last_tag }}
