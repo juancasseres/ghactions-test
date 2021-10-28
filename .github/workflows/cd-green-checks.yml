@@ -26,7 +26,7 @@ jobs:
       - name: Set last tag
         id: set-tag
         run: |
-          echo "::set-output name=last_tag::${GITHUB_REF:10}"
+          echo "::set-output name=last_tag::${GITHUB_REF}"
       - name: Check output
         env:
           RELEASE_VERSION: ${{ steps.set-tag.outputs.last_tag }}
