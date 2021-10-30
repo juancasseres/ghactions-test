@@ -52,7 +52,7 @@ jobs:
       - name: Set last tag
         id: set-vars
         run: |
-          git describe --exact-match --tags $(git log -n1 --pretty='%h')
+          git describe --tags $(git rev-list --tags --max-count=1)
           git describe --tags --abbrev=0
           echo "::set-output name=last_tag::git describe --tags --abbrev=0"
         env:
