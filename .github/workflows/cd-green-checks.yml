@@ -13,10 +13,32 @@ jobs:
       - name: Set variables
         id: set-vars
         run: |
-          echo "::set-output name=smoke-test-command::test beta-admin.evercheck.com"
-          echo "::set-output name=slack-channel::platform-team-guys"
-          echo "::set-output name=slack-webhook::https://hooks.slack.com/services/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"
-          echo "::set-output name=deployment-api-url::https://ansible.demo.evercheck.com/run-command"
+          if [[ "${{ github.base_ref }}" == "master" || "${{ github.ref }}" == "refs/heads/master" || "${{ github.base_ref }}" == "main" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+              echo "::set-output name=environment::production"
+              echo "::set-output name=deployment-api-url::https://ansible.evercheck.com/run-command"
+              echo "::set-output name=smoke-test-command::test credentialing.evercheck.com/api"
+              echo "::set-output name=slack-channel::ec-prod-cicd"
+              echo "::set-output name=slack-webhook::https://hooks.slack.com/services/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"
+              echo "::set-output name=smoke-test-repo-branch::refs/heads/master"
+            fi
+
+            if [[ "${{ github.base_ref }}" == "demo" || "${{ github.ref }}" == "refs/heads/demo" ]]; then
+              echo "::set-output name=environment::demo"
+              echo "::set-output name=deployment-api-url::https://ansible.demo.evercheck.com/run-command"
+              echo "::set-output name=smoke-test-command::test:demo credentialing.evercheck.com/api"
+              echo "::set-output name=slack-channel::ec-demo-cicd"
+              echo "::set-output name=slack-webhook::https://hooks.slack.com/services/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"
+              echo "::set-output name=smoke-test-repo-branch::refs/heads/demo"
+            fi
+
+            if [[ "${{ github.base_ref }}" == "test" || "${{ github.ref }}" == "refs/heads/test" ]]; then
+              echo "::set-output name=environment::test"
+              echo "::set-output name=deployment-api-url::https://ansible.test.evercheck.com/run-command"
+              echo "::set-output name=smoke-test-command::test:test credentialing.evercheck.com/api"
+              echo "::set-output name=slack-channel::ec-test-cicd"
+              echo "::set-output name=slack-webhook::https://hooks.slack.com/services/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"
+              echo "::set-output name=smoke-test-repo-branch::refs/heads/test"
+            fi
   tag_name:
     runs-on: ubuntu-latest
     outputs:
@@ -30,7 +52,8 @@ jobs:
       - name: Set last tag
         id: set-vars
         run: |
-          echo "::set-output name=last_tag::${{steps.get-latest-tag.outputs.tag}}"
+          git describe --tags --abbrev=0
+          echo "::set-output name=last_tag::git describe --tags --abbrev=0"
       - name: Check output
         env:
           RELEASE_VERSION: ${{ steps.set-vars.outputs.last_tag }}
@@ -114,6 +137,8 @@ jobs:
   # rollback:
   #   if: failure()
   #   timeout-minutes: 5
+  #   outputs:
+  #     status: ${{ steps.schedule-rollback.outputs.status }}
   #   needs:
   #     - env-variables
   #     - smoke-tests
@@ -124,12 +149,17 @@ jobs:
   #       run: |
   #         API_RESPONSE=$(curl $FLAGS $METHOD $DEPLOYMENT_API --silent --header 'Content-Type: application/json' --data-raw '{ "service": "ece-web-api", "command": "rollback", "location": "all", "username": "${{ env.USER_NAME }}", "git_tag": ${{needs.}} }')
   #         IFS=';' read -ra my_array <<< "$API_RESPONSE"
-  #         API_RESPONSE_BODY="${my_array[0]}"
   #         API_RESPONSE_HTTP_CODE="${my_array[1]}"
-  #         echo "::set-output name=response::$API_RESPONSE_BODY"
   #         echo "::set-output name=status::$API_RESPONSE_HTTP_CODE"
   #       env:
   #         METHOD: POST
   #         FLAGS: -w ;%{http_code} --location --request
   #         USER_NAME: ${{ github.actor }}
   #         DEPLOYMENT_API: ${{ needs.env-variables.outputs.deployment-api-url }}
+  #     - name: Check rollback result
+  #       run: |
+  #         if [[ $status == "200" ]]; then
+  #           echo Rollback scheduled successfully
+  #         fi
+  #       env:
+  #         status: ${{ steps.schedule-rollback.outputs.status }}
