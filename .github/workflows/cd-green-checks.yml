@@ -52,11 +52,7 @@ jobs:
       - name: Set last tag
         id: set-vars
         run: |
-          git describe --tags $(git rev-list --tags --max-count=1)
-          git describe --tags --abbrev=0
-          echo "::set-output name=last_tag::git describe --tags --abbrev=0"
-        env:
-          GITHUB_TOKEN: ${{ secrets.CICD_PAT }}
+          echo "::set-output name=last_tag::${{steps.get-latest-tag.outputs.tag}}"
       - name: Check output
         env:
           RELEASE_VERSION: ${{ steps.set-vars.outputs.last_tag }}
